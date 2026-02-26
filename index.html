@@ -4,80 +4,82 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Medidor de Distância - Mapa Tático</title>
+
 <style>
-  * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-  body {
-    background: #0a0a0a;
-    overflow: hidden;
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  }
+body {
+  background: #0a0a0a;
+  overflow: hidden;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
 
-  #container {
-    position: relative;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-  }
+#container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
 
-  #map {
-    position: absolute;
-    top: 0;
-    left: 0;
-    transform-origin: top left;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    pointer-events: none;
-    user-select: none;
-    -webkit-user-drag: none;
-  }
+#map {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
 
-  #canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    cursor: crosshair;
-  }
+#canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  cursor: crosshair;
+}
 
-  #loading {
-    position: fixed;
-    top: 100%;
-    left: 100%;
-    transform: translate(-50%, -50%);
-    color: #888;
-    font-size: 14px;
-    z-index: 100;
-    pointer-events: none;
-  }
+#loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #888;
+  font-size: 14px;
+  z-index: 100;
+  pointer-events: none;
+}
 
-  #info {
-    position: fixed;
-    top: 12px;
-    left: 12px;
-    z-index: 10;
-    background: rgba(0, 0, 0, 0.7);
-    color: #aaa;
-    padding: 8px 14px;
-    border-radius: 6px;
-    font-size: 12px;
-    backdrop-filter: blur(4px);
-  }
+#info {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.7);
+  color: #aaa;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  backdrop-filter: blur(4px);
+}
 
-  #info span {
-    color: #4ade80;
-  }
+#info span {
+  color: #4ade80;
+}
 </style>
 </head>
+
 <body>
 
 <div id="loading">Carregando mapa...</div>
 
 <div id="info">
-  Zoom: <span id="zoomLevel">0%</span> | Scroll para zoom
+  Zoom: <span id="zoomLevel">100%</span> | Scroll para zoom
 </div>
 
 <div id="container">
@@ -90,8 +92,8 @@
    CONFIGURAÇÃO
 ================================ */
 const MAP_URL = 'https://i.postimg.cc/cs042L5Q/Rondo-Main-No-Text-High-Res-(1)-(1).png';
-const IMAGE_SIZE = 8192;  // px
-const METERS_PER_PIXEL = 1;  // 1 px = 1 m
+const IMAGE_SIZE = 8192;     // px reais do mapa
+const METERS_PER_PIXEL = 1; // 1 px = 1 metro
 
 /* ===============================
    ELEMENTOS
@@ -105,12 +107,14 @@ const zoomLevelEl = document.getElementById('zoomLevel');
 /* ===============================
    ESTADO
 ================================ */
-let scale = 1;
+let scale = 1;   // será ajustado automaticamente
 let offsetX = 0;
 let offsetY = 0;
+
 let isDragging = false;
 let dragStartX = 0;
 let dragStartY = 0;
+
 let pointA = null;
 let pointB = null;
 
@@ -119,25 +123,36 @@ let pointB = null;
 ================================ */
 function init() {
   map.src = MAP_URL;
-  
+
   map.onload = () => {
     loadingEl.style.display = 'none';
     map.width = IMAGE_SIZE;
     map.height = IMAGE_SIZE;
-    centerMap();
+    fitMapToScreen();
     resize();
   };
 
   map.onerror = () => {
-    loadingEl.textContent = 'Erro ao carregar o mapa. Recarregue a página.';
+    loadingEl.textContent = 'Erro ao carregar o mapa.';
   };
 }
 
-function centerMap() {
+/* ===============================
+   ZOOM INICIAL (FIT TO SCREEN)
+================================ */
+function fitMapToScreen() {
   const screenW = window.innerWidth;
   const screenH = window.innerHeight;
-  offsetX = (screenW - IMAGE_SIZE) / 2;
-  offsetY = (screenH - IMAGE_SIZE) / 2;
+
+  const scaleX = screenW / IMAGE_SIZE;
+  const scaleY = screenH / IMAGE_SIZE;
+
+  scale = Math.min(scaleX, scaleY);
+
+  offsetX = (screenW - IMAGE_SIZE * scale) / 2;
+  offsetY = (screenH - IMAGE_SIZE * scale) / 2;
+
+  zoomLevelEl.textContent = Math.round(scale * 100) + '%';
 }
 
 /* ===============================
@@ -152,35 +167,34 @@ function resize() {
 window.addEventListener('resize', resize);
 
 /* ===============================
-   ZOOM (SCROLL)
+   ZOOM COM SCROLL
 ================================ */
 window.addEventListener('wheel', (e) => {
   e.preventDefault();
-  
+
   const zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
   const newScale = Math.max(0.1, Math.min(scale * zoomFactor, 10));
-  
-  // Zoom em direção ao cursor
+
   const rect = canvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
   const mouseY = e.clientY - rect.top;
-  
+
   const worldX = (mouseX - offsetX) / scale;
   const worldY = (mouseY - offsetY) / scale;
-  
+
   offsetX = mouseX - worldX * newScale;
   offsetY = mouseY - worldY * newScale;
   scale = newScale;
-  
+
   zoomLevelEl.textContent = Math.round(scale * 100) + '%';
   redraw();
 }, { passive: false });
 
 /* ===============================
-   PAN (ARRASTAR)
+   PAN
 ================================ */
 canvas.addEventListener('mousedown', (e) => {
-  if (e.button === 1 || e.button === 0) {
+  if (e.button === 0 || e.button === 1) {
     isDragging = true;
     dragStartX = e.clientX - offsetX;
     dragStartY = e.clientY - offsetY;
@@ -202,159 +216,114 @@ window.addEventListener('mouseup', () => {
 /* ===============================
    CONVERSÃO DE COORDENADAS
 ================================ */
-function screenToWorld(screenX, screenY) {
+function screenToWorld(x, y) {
   return {
-    x: (screenX - offsetX) / scale,
-    y: (screenY - offsetY) / scale
+    x: (x - offsetX) / scale,
+    y: (y - offsetY) / scale
   };
 }
 
-function worldToScreen(worldX, worldY) {
+function worldToScreen(x, y) {
   return {
-    x: worldX * scale + offsetX,
-    y: worldY * scale + offsetY
+    x: x * scale + offsetX,
+    y: y * scale + offsetY
   };
 }
 
 /* ===============================
-   MEDIÇÃO (CLIQUES)
+   MEDIÇÃO
 ================================ */
 canvas.addEventListener('click', (e) => {
   if (isDragging) return;
-  
+
   const rect = canvas.getBoundingClientRect();
-  const clickPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-  
-  // Verifica se está dentro dos limites do mapa
-  if (clickPos.x < 0 || clickPos.x > IMAGE_SIZE || 
-      clickPos.y < 0 || clickPos.y > IMAGE_SIZE) {
-    return;
-  }
-  
-  // 1º clique - define ponto A
+  const pos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+  if (pos.x < 0 || pos.x > IMAGE_SIZE || pos.y < 0 || pos.y > IMAGE_SIZE) return;
+
   if (!pointA && !pointB) {
-    pointA = clickPos;
+    pointA = pos;
     redraw();
     return;
   }
-  
-  // 2º clique - define ponto B e calcula
+
   if (pointA && !pointB) {
-    pointB = clickPos;
+    pointB = pos;
     redraw();
     return;
   }
-  
-  // 3º clique - reseta e inicia nova medição
-  pointA = clickPos;
+
+  pointA = pos;
   pointB = null;
   redraw();
 });
 
 /* ===============================
-   CÁLCULO DE DISTÂNCIA
+   DISTÂNCIA (REAL)
 ================================ */
 function calculateDistance() {
   if (!pointA || !pointB) return 0;
-  
+
   const dx = pointB.x - pointA.x;
   const dy = pointB.y - pointA.y;
-  const pixels = Math.sqrt(dx * dx + dy * dy);
-  
-  return Math.round(pixels * METERS_PER_PIXEL);
+
+  return Math.round(Math.sqrt(dx * dx + dy * dy) * METERS_PER_PIXEL);
 }
 
 /* ===============================
    DESENHO
 ================================ */
 function redraw() {
-  // Limpa canvas
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
-  // Atualiza posição do mapa
+
   map.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
-  
-  // Desenha medição se houver
+
   if (pointA && pointB) {
-    const screenA = worldToScreen(pointA.x, pointA.y);
-    const screenB = worldToScreen(pointB.x, pointB.y);
-    const distance = calculateDistance();
-    
-    // Linha principal
-    ctx.beginPath();
-    ctx.moveTo(screenA.x, screenA.y);
-    ctx.lineTo(screenB.x, screenB.y);
+    const A = worldToScreen(pointA.x, pointA.y);
+    const B = worldToScreen(pointB.x, pointB.y);
+    const dist = calculateDistance();
+
     ctx.strokeStyle = '#ef4444';
     ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(A.x, A.y);
+    ctx.lineTo(B.x, B.y);
     ctx.stroke();
-    
-    // Pontos
+
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.arc(screenA.x, screenA.y, 4, 0, Math.PI * 2);
+    ctx.arc(A.x, A.y, 4, 0, Math.PI * 2);
+    ctx.arc(B.x, B.y, 4, 0, Math.PI * 2);
     ctx.fill();
-    
-    ctx.beginPath();
-    ctx.arc(screenB.x, screenB.y, 4, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Texto da distância
-    const midX = (screenA.x + screenB.x) / 2;
-    const midY = (screenA.y + screenB.y) / 2;
-    
-    // Fundo do texto
-    const text = distance + 'm';
-    ctx.font = 'bold 12px Segoe UI, Arial, sans-serif';
-    const textMetrics = ctx.measureText(text);
-    const textWidth = textMetrics.width;
-    const textHeight = 14;
-    const padding = 4;
-    
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(
-      midX - textWidth / 2 - padding,
-      midY - textHeight / 2 - padding,
-      textWidth + padding * 2,
-      textHeight + padding * 2
-    );
-    
-    // Texto
+
+    const midX = (A.x + B.x) / 2;
+    const midY = (A.y + B.y) / 2;
+
+    ctx.font = 'bold 12px Segoe UI';
+    const text = dist + 'm';
+    const w = ctx.measureText(text).width;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(midX - w / 2 - 6, midY - 10, w + 12, 20);
+
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, midX, midY);
   }
-  
-  // Desenha ponto A mesmo sem ponto B (preview)
+
   if (pointA && !pointB) {
-    const screenA = worldToScreen(pointA.x, pointA.y);
-    
+    const A = worldToScreen(pointA.x, pointA.y);
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
-    ctx.arc(screenA.x, screenA.y, 4, 0, Math.PI * 2);
+    ctx.arc(A.x, A.y, 4, 0, Math.PI * 2);
     ctx.fill();
-    
-    // Círculo de referência
-    ctx.strokeStyle = 'rgba(239, 68, 68, 0.5)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(screenA.x, screenA.y, 8, 0, Math.PI * 2);
-    ctx.stroke();
   }
 }
 
 /* ===============================
-   INICIAR
-================================ */
-init();
-</script>
-
-</body>
-</html>
-=====
-   INICIAR
+   START
 ================================ */
 init();
 </script>
