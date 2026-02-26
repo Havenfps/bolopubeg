@@ -124,12 +124,17 @@ let pointB = null;
 function init() {
   map.src = MAP_URL;
 
-  map.onload = () => {
-    loadingEl.style.display = 'none';
-    fitMapToScreen();
-    resize();
-  };
+ map.onload = () => {
+  loadingEl.style.display = 'none';
 
+  // garante viewport estável (atalhos / app mode)
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      fitMapToScreen();
+      resize();
+    });
+  });
+};
   map.onerror = () => {
     loadingEl.textContent = 'Erro ao carregar o mapa.';
   };
